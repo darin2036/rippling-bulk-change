@@ -217,6 +217,12 @@ export default function Step3ApplyValues({
     );
   };
 
+  const normalizeFieldValue = (value: unknown): string | number => {
+    if (typeof value === "number") return value;
+    if (typeof value === "string") return value;
+    return "";
+  };
+
   return (
     <div className="space-y-4">
       <ScheduleControls
@@ -247,7 +253,11 @@ export default function Step3ApplyValues({
               <td className="p-3 font-semibold">Apply to all</td>
               {fields.map((field) => (
                 <td key={`apply-${field}`} className="p-3">
-                  {renderFieldInput(field, applyToAll[field] ?? "", (next) => onSetApplyToAllField(field, next))}
+                  {renderFieldInput(
+                    field,
+                    normalizeFieldValue(applyToAll[field]),
+                    (next) => onSetApplyToAllField(field, next)
+                  )}
                 </td>
               ))}
             </tr>
@@ -259,11 +269,12 @@ export default function Step3ApplyValues({
                 </td>
                 {fields.map((field) => {
                   const overrideValue = overrides[emp.id]?.[field];
-                  const placeholder = applyToAll[field] ? String(applyToAll[field]) : "—";
+                  const applyValue = applyToAll[field];
+                  const placeholder = applyValue !== undefined && applyValue !== "" ? String(applyValue) : "—";
                   return (
                     <td key={`${emp.id}-${field}`} className="p-3">
                       <div className={overrideValue !== undefined && overrideValue !== "" ? "rounded-lg ring-1 ring-[var(--plum-300)]" : ""}>
-                        {renderFieldInput(field, overrideValue ?? "", (next) => {
+                        {renderFieldInput(field, normalizeFieldValue(overrideValue), (next) => {
                           if (next === "" || next === undefined) onClearOverrideField(emp.id, field);
                           else onSetOverrideField(emp.id, field, next);
                         }, placeholder)}
