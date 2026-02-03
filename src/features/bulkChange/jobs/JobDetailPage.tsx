@@ -18,6 +18,13 @@ const FIELD_LABELS: Record<BulkField, string> = {
   level: "Level",
   cashComp: "Cash comp",
   targetBonusPct: "Target bonus %",
+  payPeriod: "Pay period",
+  status: "Status",
+  startDate: "Start date",
+  endDate: "End date",
+  employmentType: "Employment type",
+  jurisdiction: "Jurisdiction",
+  legalEntity: "Legal entity",
 };
 
 const STEP_LABELS: Record<PropStep, string> = {
@@ -33,6 +40,7 @@ function jobName(job: BulkChangeJob) {
     .map((f) => FIELD_LABELS[f] ?? f)
     .slice(0, 4)
     .join(", ");
+  if (job.kind === "csv") return `CSV import: ${fields || "Update"}`;
   return `Bulk change: ${fields || "Update"}`;
 }
 
@@ -57,6 +65,7 @@ export default function JobDetailPage() {
   const { jobs, ensureJobRunning } = useBulkStore();
   const job = jobs.find(j => j.id === jobId);
   const [tab, setTab] = useState("overview");
+  const [resultFilter, setResultFilter] = useState<"all" | "failed" | "succeeded">("all");
 
   const peopleById = useMemo(() => {
     const emps = getEmployees();
@@ -86,6 +95,7 @@ export default function JobDetailPage() {
   const progressPct = job.totalCount === 0 ? 0 : Math.min(100, Math.round((job.processedCount / job.totalCount) * 100));
   const selectedFields = job.draftSnapshot.selectedFields.map((f) => FIELD_LABELS[f] ?? f);
   const stepOrder: PropStep[] = ["systemOfRecordUpdate", "payrollSync", "benefitsSync", "deviceMgmtSync", "thirdPartySync"];
+  const csvRecordByRowId = useMemo(() => new Map(job.csv?.records.map((r) => [r.rowId, r]) ?? []), [job.csv]);
 
   return (
     <div className="space-y-4">
@@ -132,7 +142,9 @@ export default function JobDetailPage() {
             <div className="grid md:grid-cols-2 gap-4">
               <div className="rounded-xl border border-[var(--border)] bg-white p-4">
                 <div className="text-sm font-semibold">Scope</div>
-                <div className="text-sm text-[var(--ink-500)] mt-1">People affected: {job.totalCount}</div>
+                <div className="text-sm text-[var(--ink-500)] mt-1">
+                  {job.kind === "csv" ? "Rows imported" : "People affected"}: {job.totalCount}
+                </div>
                 <div className="text-sm text-[var(--ink-500)] mt-1">Fields: {selectedFields.join(", ") || "—"}</div>
               </div>
               <div className="rounded-xl border border-[var(--border)] bg-white p-4">
@@ -153,46 +165,121 @@ export default function JobDetailPage() {
           ) : null}
 
           {tab === "people" ? (
-            <div className="overflow-auto border border-[var(--border)] rounded-xl bg-white">
-              <table className="min-w-[980px] w-full text-sm">
-                <thead className="bg-[var(--cream-100)] text-[var(--ink-500)] border-b border-[var(--border)]">
-                  <tr>
-                    <th className="p-3 text-left">Employee</th>
-                    <th className="p-3 text-left">Result</th>
-                    {stepOrder.map((s) => (
-                      <th key={s} className="p-3 text-left">{STEP_LABELS[s]}</th>
-                    ))}
-                    <th className="p-3 text-left">Message</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {job.employeeIds.map((id) => {
-                    const meta = peopleById[id];
-                    const res = job.results.find((r) => r.employeeId === id);
-                    const pending = !res;
-                    const resultLabel = pending ? "Pending" : res.ok ? "OK" : "Failed";
-                    const resultTone = pending ? "neutral" : res.ok ? "green" : "red";
-                    return (
-                      <tr key={id} className="border-b border-[var(--border)] last:border-b-0">
-                        <td className="p-3">
-                          <div className="font-medium">{meta?.name || id}</div>
-                          <div className="text-xs text-[var(--ink-500)]">{meta ? `${meta.title}, ${meta.department}` : ""}</div>
-                        </td>
-                        <td className="p-3"><Badge tone={resultTone}>{resultLabel}</Badge></td>
-                        {stepOrder.map((s) => {
-                          const stepStatus = pending ? "pending" : res.steps[s];
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="text-sm text-[var(--ink-500)]">
+                  Showing{" "}
+                  <span className="font-semibold text-[var(--ink-900)]">{job.employeeIds.length}</span>{" "}
+                  {job.kind === "csv" ? "rows" : "people"}.
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant={resultFilter === "all" ? "secondary" : "ghost"}
+                    onClick={() => setResultFilter("all")}
+                  >
+                    All
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={resultFilter === "failed" ? "secondary" : "ghost"}
+                    onClick={() => setResultFilter("failed")}
+                  >
+                    Failed
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={resultFilter === "succeeded" ? "secondary" : "ghost"}
+                    onClick={() => setResultFilter("succeeded")}
+                  >
+                    Succeeded
+                  </Button>
+                </div>
+              </div>
+
+              <div className="overflow-auto border border-[var(--border)] rounded-xl bg-white">
+                <table className="min-w-[980px] w-full text-sm">
+                  <thead className="bg-[var(--cream-100)] text-[var(--ink-500)] border-b border-[var(--border)]">
+                    <tr>
+                      <th className="p-3 text-left">{job.kind === "csv" ? "Row" : "Employee"}</th>
+                      <th className="p-3 text-left">Result</th>
+                      <th className="p-3 text-left">Override</th>
+                      {stepOrder.map((s) => (
+                        <th key={s} className="p-3 text-left">{STEP_LABELS[s]}</th>
+                      ))}
+                      <th className="p-3 text-left">Message</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {job.employeeIds
+                      .filter((id) => {
+                        if (resultFilter === "all") return true;
+                        const res = job.results.find((r) => r.employeeId === id);
+                        if (!res) return false;
+                        return resultFilter === "failed" ? !res.ok : res.ok;
+                      })
+                      .map((id) => {
+                        const res = job.results.find((r) => r.employeeId === id);
+                        const pending = !res;
+                        const resultLabel = pending ? "Pending" : res.ok ? "OK" : "Failed";
+                        const resultTone = pending ? "neutral" : res.ok ? "green" : "red";
+
+                        if (job.kind === "csv") {
+                          const rec = csvRecordByRowId.get(id);
+                          const resolved = rec?.resolvedEmployeeId ? peopleById[rec.resolvedEmployeeId] : undefined;
                           return (
-                            <td key={`${id}-${s}`} className="p-3">
-                              <Badge tone={stepTone(stepStatus)}>{stepStatus}</Badge>
-                            </td>
+                            <tr key={id} className="border-b border-[var(--border)] last:border-b-0">
+                              <td className="p-3">
+                                <div className="font-medium">{rec?.email || id}</div>
+                                <div className="text-xs text-[var(--ink-500)]">
+                                  {resolved ? `${resolved.title}, ${resolved.department}` : "Unmatched email"}
+                                </div>
+                              </td>
+                              <td className="p-3"><Badge tone={resultTone}>{resultLabel}</Badge></td>
+                              <td className="p-3 text-[var(--ink-700)]">—</td>
+                              {stepOrder.map((s) => {
+                                const stepStatus = pending ? "pending" : res.steps[s];
+                                return (
+                                  <td key={`${id}-${s}`} className="p-3">
+                                    <Badge tone={stepTone(stepStatus)}>{stepStatus}</Badge>
+                                  </td>
+                                );
+                              })}
+                              <td className="p-3 text-[var(--ink-700)]">{pending ? "—" : res.message || "—"}</td>
+                            </tr>
                           );
-                        })}
-                        <td className="p-3 text-[var(--ink-700)]">{pending ? "—" : res.message || "—"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        }
+
+                        const meta = peopleById[id];
+                        const override = job.draftSnapshot.exceptionOverrides?.[id];
+                        const overrideLabel = override
+                          ? override.reason === "Other"
+                            ? override.note || "Other"
+                            : `${override.reason}${override.note ? ` — ${override.note}` : ""}`
+                          : "—";
+                        return (
+                          <tr key={id} className="border-b border-[var(--border)] last:border-b-0">
+                            <td className="p-3">
+                              <div className="font-medium">{meta?.name || id}</div>
+                              <div className="text-xs text-[var(--ink-500)]">{meta ? `${meta.title}, ${meta.department}` : ""}</div>
+                            </td>
+                            <td className="p-3"><Badge tone={resultTone}>{resultLabel}</Badge></td>
+                            <td className="p-3 text-[var(--ink-700)]">{overrideLabel}</td>
+                            {stepOrder.map((s) => {
+                              const stepStatus = pending ? "pending" : res.steps[s];
+                              return (
+                                <td key={`${id}-${s}`} className="p-3">
+                                  <Badge tone={stepTone(stepStatus)}>{stepStatus}</Badge>
+                                </td>
+                              );
+                            })}
+                            <td className="p-3 text-[var(--ink-700)]">{pending ? "—" : res.message || "—"}</td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           ) : null}
 

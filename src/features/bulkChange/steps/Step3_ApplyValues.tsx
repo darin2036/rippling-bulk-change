@@ -15,7 +15,7 @@ type Props = {
   locations: string[];
 };
 
-const LABELS: Record<BulkField, string> = {
+const LABELS: Partial<Record<BulkField, string>> = {
   department: "Department",
   managerId: "Manager",
   location: "Location",
@@ -115,7 +115,7 @@ export default function Step3ApplyValues({
       <div className="grid md:grid-cols-2 gap-4">
         {fields.map((field) => (
           <div key={field} className="space-y-2">
-            <div className="text-sm font-semibold">{LABELS[field]}</div>
+            <div className="text-sm font-semibold">{LABELS[field] ?? field}</div>
             {renderFieldInput(field, String(applyToAll[field] ?? ""))}
           </div>
         ))}
@@ -139,7 +139,7 @@ export default function Step3ApplyValues({
                 <th className="p-3 text-left">Person</th>
                 {fields.map((field) => (
                   <th key={field} className="p-3 text-left">
-                    {LABELS[field]}
+                    {LABELS[field] ?? field}
                   </th>
                 ))}
               </tr>

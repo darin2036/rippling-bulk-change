@@ -3,8 +3,8 @@ import Shell from "./layout/Shell";
 import PeoplePage from "../features/people/PeoplePage";
 import AddPeoplePage from "../features/people/AddPeoplePage";
 import PeopleDetailsGridPage from "../features/people/PeopleDetailsGridPage";
-import RemovePeoplePage from "../features/people/RemovePeoplePage";
 import BulkChangeWizard from "../features/bulkChange/BulkChangeWizard";
+import CsvImportPage from "../features/bulkChange/csv/CsvImportPage";
 import JobsPage from "../features/bulkChange/jobs/JobsPage";
 import JobDetailPage from "../features/bulkChange/jobs/JobDetailPage";
 
@@ -35,9 +35,9 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="/people" replace /> },
       { path: "people", element: <PeoplePage /> },
       { path: "people/add", element: <AddPeoplePage /> },
-      { path: "people/remove", element: <RemovePeoplePage /> },
       { path: "people/details", element: <PeopleDetailsGridPage /> },
       { path: "bulk-change/new", element: <BulkChangeWizard /> },
+      { path: "bulk-change/import-csv", element: <CsvImportPage /> },
       { path: "jobs", element: <JobsPage /> },
       { path: "jobs/:jobId", element: <JobDetailPage /> },
       { path: "*", element: <NotFound /> },

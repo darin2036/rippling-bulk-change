@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from "react";
 import Button from "../../components/Button";
 import { Card, CardContent } from "../../components/Card";
-import ProfilePanel from "../../components/ProfilePanel";
-import { getEmployees, updateEmployees } from "./people.data";
+import { useProfileDrawer } from "../../components/profileDrawer/ProfileDrawerContext";
+import { getEmployees } from "./people.data";
 import type { Employee } from "./people.data";
 
 type OrgNode = {
@@ -21,10 +21,10 @@ function buildTree(employees: Employee[]) {
   employees.forEach((e) => {
     byId.set(e.id, {
       id: e.id,
-      name: e.fullName,
+      name: e.name ?? e.fullName,
       title: e.title,
       department: e.department,
-      location: e.location,
+      location: e.workLocation ?? e.location,
       managerId: e.managerId ?? null,
       reportCount: 0,
       directReports: [],
@@ -99,25 +99,14 @@ function OrgBranch({ node, onSelect }: { node: OrgNode; onSelect: (id: string) =
 export default function PeopleDetailsGridPage() {
   const [employees, setEmployees] = useState<Employee[]>(() => getEmployees());
   const { topLeader } = useMemo(() => buildTree(employees), [employees]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   const dragRef = useRef<{ active: boolean; x: number; y: number }>({ active: false, x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement | null>(null);
-
-  const selectedEmployee = selectedId ? employees.find((e) => e.id === selectedId) ?? null : null;
+  const { openEmployeeId } = useProfileDrawer();
 
   const openProfile = (id: string) => {
-    setSelectedId(id);
-  };
-
-  const closeProfile = () => {
-    setSelectedId(null);
-  };
-
-  const handleSaveProfile = (nextEmployee: Employee) => {
-    const next = employees.map((emp) => (emp.id === nextEmployee.id ? { ...emp, ...nextEmployee } : emp));
-    setEmployees(next);
-    updateEmployees(next);
+    setEmployees(getEmployees());
+    openEmployeeId(id);
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -247,14 +236,7 @@ export default function PeopleDetailsGridPage() {
         </CardContent>
       </Card>
 
-      {selectedEmployee ? (
-        <ProfilePanel
-          employee={selectedEmployee}
-          employees={employees}
-          onClose={closeProfile}
-          onSave={handleSaveProfile}
-        />
-      ) : null}
+      {/* Profile drawer is global and mounted in the app shell. */}
     </div>
   );
 }

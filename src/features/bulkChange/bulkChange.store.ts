@@ -3,7 +3,9 @@ import { uid } from "../../lib/ids";
 import { loadJSON, saveJSON } from "../../lib/storage";
 import { getEmployees, updateEmployees } from "../people/people.data";
 import { continueBulkJob } from "./jobs/jobRunner";
-import type { BulkChangeDraft, BulkChangeJob, BulkField } from "./types";
+import { continueCsvImportJob } from "./jobs/csvImportRunner";
+import type { BulkChangeDraft, BulkChangeJob, BulkField, CsvImportSnapshot } from "./types";
+import { groupIssuesByEmployee, validateDraft } from "./grid/validation";
 
 const DRAFT_KEY = "rbp_bulk_draft_v2";
 const JOBS_KEY = "rbp_bulk_jobs_v2";
@@ -19,14 +21,23 @@ type State = {
   setApplyToAllField: (field: BulkField, value: unknown) => void;
   setOverrideField: (employeeId: string, field: BulkField, value: unknown) => void;
   clearOverrideField: (employeeId: string, field: BulkField) => void;
+  setExceptionOverride: (employeeId: string, override: ExceptionOverride | null) => void;
 
   resetDraft: () => void;
 
   startJobFromDraft: () => string | null;
+  startCsvJob: (snapshot: CsvImportSnapshot) => string | null;
   ensureJobRunning: (jobId: string) => void;
 
   addJob: (job: BulkChangeJob) => void;
   updateJob: (job: BulkChangeJob) => void;
+};
+
+type ExceptionOverride = {
+  reason: string;
+  note?: string;
+  appliedBy: string;
+  appliedAt: number;
 };
 
 function newDraft(): BulkChangeDraft {
@@ -38,6 +49,7 @@ function newDraft(): BulkChangeDraft {
     selectedFields: [],
     applyToAll: {},
     overrides: {},
+    exceptionOverrides: undefined,
   };
 }
 
@@ -59,6 +71,7 @@ function persistJobs(j: BulkChangeJob[]) {
 
 function applyDraftToEmployees(job: BulkChangeJob) {
   if (job.changesApplied) return;
+  if (job.kind === "csv") return;
   const employees = getEmployees();
   const byId = new Map(employees.map((e) => [e.id, e]));
 
@@ -80,6 +93,82 @@ function applyDraftToEmployees(job: BulkChangeJob) {
     }
 
     // If the new manager id doesn't exist in this dataset, keep the old one.
+    if (typeof next.managerId === "string" && next.managerId && !byId.has(next.managerId)) {
+      next.managerId = emp.managerId;
+    }
+
+    return next;
+  });
+
+  updateEmployees(updated);
+}
+
+function applyValidationOverrideNotes(job: BulkChangeJob): BulkChangeJob {
+  if (job.kind === "csv") return job;
+  const overrides = job.draftSnapshot.exceptionOverrides;
+  if (!overrides || Object.keys(overrides).length === 0) return job;
+
+  const employees = getEmployees().filter((e) => job.employeeIds.includes(e.id));
+  const issues = validateDraft(employees, job.draftSnapshot);
+  if (issues.length === 0) return job;
+
+  const issuesByEmp = groupIssuesByEmployee(issues);
+
+  const results = job.results.map((r) => {
+    if (!r.ok) return r;
+    if (!issuesByEmp[r.employeeId]) return r;
+    const override = overrides[r.employeeId];
+    if (!override) return r;
+    const note =
+      override.reason === "Other"
+        ? `Override: ${override.note || "Other"}`
+        : `Override: ${override.reason}${override.note ? ` — ${override.note}` : ""}`;
+    return { ...r, message: r.message ? `${r.message} · ${note}` : note };
+  });
+
+  const overrideCount = Object.keys(overrides).length;
+  const auditMsg = `Validation overrides applied: ${overrideCount} employee(s)`;
+
+  const auditLog = job.auditLog.some((e) => e.message.startsWith("Validation overrides applied"))
+    ? job.auditLog
+    : [...job.auditLog, { at: Date.now(), message: auditMsg }];
+
+  return { ...job, results, auditLog };
+}
+
+function applyCsvImportToEmployees(job: BulkChangeJob) {
+  if (job.changesApplied) return;
+  if (job.kind !== "csv" || !job.csv) return;
+
+  const employees = getEmployees();
+  const byId = new Map(employees.map((e) => [e.id, e]));
+  const recordByRowId = new Map(job.csv.records.map((r) => [r.rowId, r]));
+  const okRowIds = new Set(job.results.filter((r) => r.ok).map((r) => r.employeeId));
+
+  if (okRowIds.size === 0) return;
+
+  const updated = employees.map((emp) => {
+    // Find any record that resolves to this employee and succeeded.
+    let record: (typeof job.csv)["records"][number] | undefined;
+    for (const rowId of okRowIds) {
+      const r = recordByRowId.get(rowId);
+      if (r?.resolvedEmployeeId === emp.id) {
+        record = r;
+        break;
+      }
+    }
+    if (!record) return emp;
+
+    const next: any = { ...emp };
+    for (const [field, value] of Object.entries(record.values)) {
+      if (value === undefined || value === null || value === "") continue;
+      next[field] = value;
+      if (field === "workLocation" || field === "location") {
+        next.location = String(value);
+        next.workLocation = String(value);
+      }
+    }
+
     if (typeof next.managerId === "string" && next.managerId && !byId.has(next.managerId)) {
       next.managerId = emp.managerId;
     }
@@ -131,6 +220,16 @@ export const useBulkStore = create<State>((set, get) => ({
     set({ draft: d });
   },
 
+  setExceptionOverride: (employeeId, override) => {
+    const current = get().draft.exceptionOverrides || {};
+    const next = { ...current };
+    if (override) next[employeeId] = override;
+    else delete next[employeeId];
+    const d = { ...get().draft, exceptionOverrides: Object.keys(next).length ? next : undefined };
+    persistDraft(d);
+    set({ draft: d });
+  },
+
   resetDraft: () => {
     const d = newDraft();
     persistDraft(d);
@@ -149,12 +248,23 @@ export const useBulkStore = create<State>((set, get) => ({
       createdBy: draft.createdBy,
       employeeIds,
       status: "Validating",
-      auditLog: [{ at: Date.now(), message: "Job created" }],
+      auditLog: [
+        { at: Date.now(), message: "Job created" },
+        ...(draft.exceptionOverrides && Object.keys(draft.exceptionOverrides).length > 0
+          ? [
+              {
+                at: Date.now(),
+                message: `Validation overrides requested: ${Object.keys(draft.exceptionOverrides).length} employee(s)`,
+              },
+            ]
+          : []),
+      ],
       results: [],
       processedCount: 0,
       totalCount: employeeIds.length,
       draftSnapshot: JSON.parse(JSON.stringify(draft)) as BulkChangeDraft,
       changesApplied: false,
+      kind: "wizard",
     };
 
     get().addJob(job);
@@ -165,6 +275,48 @@ export const useBulkStore = create<State>((set, get) => ({
       get().ensureJobRunning(jobId);
     })();
 
+    return jobId;
+  },
+
+  startCsvJob: (snapshot) => {
+    if (snapshot.records.length === 0) return null;
+
+    const rowIds = snapshot.records.map((r) => r.rowId);
+    const selectedFields = Array.from(
+      new Set(
+        snapshot.records.flatMap((r) => Object.keys(r.values) as BulkField[])
+      )
+    );
+
+    const draft: BulkChangeDraft = {
+      id: uid("draft"),
+      createdAt: Date.now(),
+      createdBy: "Darin",
+      selectedEmployeeIds: rowIds,
+      selectedFields,
+      applyToAll: {},
+      overrides: Object.fromEntries(snapshot.records.map((r) => [r.rowId, r.values])),
+    };
+
+    const jobId = uid("job");
+    const job: BulkChangeJob = {
+      id: jobId,
+      createdAt: Date.now(),
+      createdBy: "Darin",
+      employeeIds: rowIds,
+      status: "Running",
+      auditLog: [{ at: Date.now(), message: "CSV import job created" }],
+      results: [],
+      processedCount: 0,
+      totalCount: rowIds.length,
+      draftSnapshot: draft,
+      changesApplied: false,
+      kind: "csv",
+      csv: snapshot,
+    };
+
+    get().addJob(job);
+    get().ensureJobRunning(jobId);
     return jobId;
   },
 
@@ -181,16 +333,27 @@ export const useBulkStore = create<State>((set, get) => ({
         const current = get().jobs.find((j) => j.id === jobId);
         if (!current) return;
 
-        const finalJob = await continueBulkJob(current, (nextJob) => {
-          get().updateJob(nextJob);
-        });
+        const finalJob =
+          current.kind === "csv"
+            ? await continueCsvImportJob(current, (nextJob) => {
+                get().updateJob(nextJob);
+              })
+            : await continueBulkJob(current, (nextJob) => {
+                get().updateJob(nextJob);
+              });
+
+        const finalJobWithOverrides = applyValidationOverrideNotes(finalJob);
 
         // Ensure final persisted job is the completed one.
-        get().updateJob(finalJob);
+        get().updateJob(finalJobWithOverrides);
 
-        if (!finalJob.changesApplied && (finalJob.status === "Completed" || finalJob.status === "CompletedWithErrors")) {
-          applyDraftToEmployees(finalJob);
-          get().updateJob({ ...finalJob, changesApplied: true });
+        if (
+          !finalJobWithOverrides.changesApplied &&
+          (finalJobWithOverrides.status === "Completed" || finalJobWithOverrides.status === "CompletedWithErrors")
+        ) {
+          if (finalJobWithOverrides.kind === "csv") applyCsvImportToEmployees(finalJobWithOverrides);
+          else applyDraftToEmployees(finalJobWithOverrides);
+          get().updateJob({ ...finalJobWithOverrides, changesApplied: true });
         }
       } finally {
         runningJobs.delete(jobId);

@@ -3,6 +3,7 @@ import Button from "../../../components/Button";
 import Badge from "../../../components/Badge";
 import { Card, CardContent } from "../../../components/Card";
 import type { Employee } from "../people.data";
+import EmployeeLink from "../../../components/people/EmployeeLink";
 
 type ColumnKey = "status" | "startDate" | "location" | "department" | "manager";
 
@@ -11,7 +12,6 @@ type Props = {
   selectedIds: string[];
   onChangeSelectedIds: (ids: string[]) => void;
   onBulkChange: () => void;
-  onOpenProfile: (id: string) => void;
 };
 
 function IconColumns() {
@@ -80,7 +80,6 @@ export default function PeopleAdminGrid({
   selectedIds,
   onChangeSelectedIds,
   onBulkChange,
-  onOpenProfile,
 }: Props) {
   const [query, setQuery] = useState("");
   const [columnsOpen, setColumnsOpen] = useState(false);
@@ -92,13 +91,11 @@ export default function PeopleAdminGrid({
     manager: true,
   });
 
-  const managerMap = useMemo(() => new Map(employees.map((e) => [e.id, e.fullName])), [employees]);
-
   const filteredEmployees = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return employees;
     return employees.filter((e) => {
-      const haystack = `${e.fullName} ${e.email} ${e.title} ${e.department} ${e.location}`.toLowerCase();
+      const haystack = `${e.name ?? e.fullName} ${e.email} ${e.title} ${e.department} ${e.workLocation ?? e.location}`.toLowerCase();
       return haystack.includes(q);
     });
   }, [employees, query]);
@@ -234,7 +231,7 @@ export default function PeopleAdminGrid({
             <tbody>
               {filteredEmployees.map((emp) => {
                 const selected = selectedSet.has(emp.id);
-                const managerName = emp.managerId ? managerMap.get(emp.managerId) : null;
+                const displayName = emp.name ?? emp.fullName;
                 return (
                   <tr
                     key={emp.id}
@@ -249,26 +246,12 @@ export default function PeopleAdminGrid({
                         type="checkbox"
                         checked={selected}
                         onChange={() => toggleRow(emp.id)}
-                        aria-label={`Select ${emp.fullName}`}
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label={`Select ${displayName}`}
                       />
                     </td>
                     <td className="px-3 py-2">
-                      <div className="flex items-center gap-3">
-                        <button
-                          type="button"
-                          className="w-8 h-8 rounded-full bg-[var(--plum-100)] text-[var(--plum-700)] text-xs font-semibold border border-[var(--plum-200)]"
-                          onClick={() => onOpenProfile(emp.id)}
-                          title="Open profile"
-                        >
-                          {emp.fullName.split(" ").map((p) => p[0]).slice(0, 2).join("")}
-                        </button>
-                        <div className="min-w-0">
-                          <div className="font-semibold truncate">{emp.fullName}</div>
-                          <div className="text-xs text-[var(--ink-500)] truncate">
-                            {emp.title}, {emp.department}
-                          </div>
-                        </div>
-                      </div>
+                      <EmployeeLink employeeId={emp.id} variant="row" showEmail />
                     </td>
 
                     {visibleColumns.status ? (
@@ -279,9 +262,13 @@ export default function PeopleAdminGrid({
                       </td>
                     ) : null}
                     {visibleColumns.startDate ? <td className="px-3 py-2 text-[var(--ink-700)]">{emp.startDate}</td> : null}
-                    {visibleColumns.location ? <td className="px-3 py-2 text-[var(--ink-700)]">{emp.location}</td> : null}
+                    {visibleColumns.location ? <td className="px-3 py-2 text-[var(--ink-700)]">{emp.workLocation ?? emp.location}</td> : null}
                     {visibleColumns.department ? <td className="px-3 py-2 text-[var(--ink-700)]">{emp.department}</td> : null}
-                    {visibleColumns.manager ? <td className="px-3 py-2 text-[var(--ink-700)]">{managerName ?? "—"}</td> : null}
+                    {visibleColumns.manager ? (
+                      <td className="px-3 py-2 text-[var(--ink-700)]">
+                        {emp.managerId ? <EmployeeLink employeeId={emp.managerId} variant="text" /> : "—"}
+                      </td>
+                    ) : null}
                   </tr>
                 );
               })}
@@ -299,4 +286,3 @@ export default function PeopleAdminGrid({
     </Card>
   );
 }
-

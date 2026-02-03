@@ -1,31 +1,40 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "../../components/Button";
 import { Card, CardContent } from "../../components/Card";
-import ProfilePanel from "../../components/ProfilePanel";
 import type { Employee } from "./people.data";
-import { getEmployees, updateEmployees } from "./people.data";
-import { saveSelectedIds } from "../bulkChange/bulkChange.state";
+import { getEmployees } from "./people.data";
+import { clearSelectedIds, saveSelectedIds } from "../bulkChange/bulkChange.state";
 import PeopleAdminGrid from "./components/PeopleAdminGrid";
+import StartBulkChangeModal from "../bulkChange/StartBulkChangeModal";
+import { useBulkStore } from "../bulkChange/bulkChange.store";
+import { useFilterStore } from "./filters/filter.store";
+import { applyEmployeeFilters, buildFilterChips, removeFilterChip } from "./filters/filter.engine";
 
 export default function PeoplePage() {
   const nav = useNavigate();
-  const [employees, setEmployees] = useState<Employee[]>(() => getEmployees());
+  const employees = useMemo<Employee[]>(() => getEmployees(), []);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [profileId, setProfileId] = useState<string | null>(null);
+  const [startBulkOpen, setStartBulkOpen] = useState(false);
+  const resetBulkDraft = useBulkStore((s) => s.resetDraft);
+  const { filterState, openFilters, setFilterState } = useFilterStore();
 
-  const handleBulkChange = () => {
-    saveSelectedIds(selectedIds);
-    nav("/bulk-change/new");
-  };
+  const openBulkStart = () => setStartBulkOpen(true);
+  const closeBulkStart = () => setStartBulkOpen(false);
 
-  const selectedProfile = profileId ? employees.find((e) => e.id === profileId) ?? null : null;
-  const closeProfile = () => setProfileId(null);
-  const handleSaveProfile = (next: Employee) => {
-    const updated = employees.map((emp) => (emp.id === next.id ? { ...emp, ...next } : emp));
-    setEmployees(updated);
-    updateEmployees(updated);
-  };
+  const filteredEmployees = useMemo(() => applyEmployeeFilters(employees, filterState), [employees, filterState]);
+  const filterChips = useMemo(
+    () =>
+      buildFilterChips(filterState, {
+        employees,
+        departments: Array.from(new Set(employees.map((e) => e.department))),
+        locations: Array.from(new Set(employees.map((e) => e.workLocation ?? e.location))),
+        jurisdictions: Array.from(new Set(employees.map((e) => e.jurisdiction ?? ""))).filter(Boolean),
+        legalEntities: Array.from(new Set(employees.map((e) => e.legalEntity ?? ""))).filter(Boolean),
+        managers: employees.map((e) => ({ id: e.id, name: e.name ?? e.fullName })),
+      }),
+    [employees, filterState]
+  );
 
   return (
     <div className="space-y-6">
@@ -39,8 +48,7 @@ export default function PeoplePage() {
           <Button onClick={() => nav("/people/remove")}>Remove people</Button>
           <Button
             variant="primary"
-            disabled={selectedIds.length === 0}
-            onClick={handleBulkChange}
+            onClick={openBulkStart}
           >
             Bulk change
           </Button>
@@ -81,16 +89,31 @@ export default function PeoplePage() {
 
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-semibold">People</h2>
-        <div />
+        <Button onClick={openFilters}>Filters</Button>
       </div>
       <div className="h-px bg-[var(--border)]" />
 
+      {filterChips.length > 0 ? (
+        <div className="flex items-center flex-wrap gap-2">
+          {filterChips.map((chip) => (
+            <button
+              key={chip.key}
+              type="button"
+              className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--cream-100)] px-3 py-1 text-xs"
+              onClick={() => setFilterState(removeFilterChip(filterState, chip))}
+            >
+              {chip.label}
+              <span className="text-[var(--ink-500)]">×</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       <PeopleAdminGrid
-        employees={employees}
+        employees={filteredEmployees}
         selectedIds={selectedIds}
         onChangeSelectedIds={setSelectedIds}
-        onBulkChange={handleBulkChange}
-        onOpenProfile={setProfileId}
+        onBulkChange={openBulkStart}
       />
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -131,14 +154,23 @@ export default function PeoplePage() {
           </div>
         </div>
       </div>
-      {selectedProfile ? (
-        <ProfilePanel
-          employee={selectedProfile}
-          employees={employees}
-          onClose={closeProfile}
-          onSave={handleSaveProfile}
-        />
-      ) : null}
+      {/* Profile drawer is global and mounted in the app shell. */}
+
+      <StartBulkChangeModal
+        open={startBulkOpen}
+        onClose={closeBulkStart}
+        onUseWizard={() => {
+          resetBulkDraft();
+          if (selectedIds.length > 0) saveSelectedIds(selectedIds);
+          else clearSelectedIds();
+          closeBulkStart();
+          nav("/bulk-change/new");
+        }}
+        onImportCsv={() => {
+          closeBulkStart();
+          nav("/bulk-change/import-csv");
+        }}
+      />
     </div>
   );
 }

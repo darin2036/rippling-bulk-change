@@ -1,4 +1,8 @@
+import { useMemo } from "react";
 import type { Employee } from "../../people/people.data";
+import { useFilterStore } from "../../people/filters/filter.store";
+import { applyEmployeeFilters, buildFilterChips, removeFilterChip } from "../../people/filters/filter.engine";
+import Button from "../../../components/Button";
 
 type Props = {
   employees: Employee[];
@@ -7,8 +11,27 @@ type Props = {
 };
 
 export default function Step1SelectPeople({ employees, selectedIds, onChange }: Props) {
+  const { filterState, openFilters, setFilterState } = useFilterStore();
+  const filteredEmployees = useMemo(
+    () => applyEmployeeFilters(employees, filterState),
+    [employees, filterState]
+  );
+
+  const filterChips = useMemo(
+    () =>
+      buildFilterChips(filterState, {
+        employees,
+        departments: Array.from(new Set(employees.map((e) => e.department))),
+        locations: Array.from(new Set(employees.map((e) => e.workLocation ?? e.location))),
+        jurisdictions: Array.from(new Set(employees.map((e) => e.jurisdiction ?? ""))).filter(Boolean),
+        legalEntities: Array.from(new Set(employees.map((e) => e.legalEntity ?? ""))).filter(Boolean),
+        managers: employees.map((e) => ({ id: e.id, name: e.name ?? e.fullName })),
+      }),
+    [employees, filterState]
+  );
+
   const selectedSet = new Set(selectedIds);
-  const allSelected = employees.length > 0 && selectedIds.length === employees.length;
+  const allSelected = filteredEmployees.length > 0 && filteredEmployees.every((e) => selectedSet.has(e.id));
 
   const toggle = (id: string) => {
     const next = new Set(selectedSet);
@@ -24,7 +47,9 @@ export default function Step1SelectPeople({ employees, selectedIds, onChange }: 
     if (allSelected) {
       onChange([]);
     } else {
-      onChange(employees.map((e) => e.id));
+      const next = new Set(selectedIds);
+      filteredEmployees.forEach((e) => next.add(e.id));
+      onChange(Array.from(next));
     }
   };
 
@@ -34,14 +59,33 @@ export default function Step1SelectPeople({ employees, selectedIds, onChange }: 
         <div>
           Selected people: <span className="font-semibold text-[var(--ink-900)]">{selectedIds.length}</span>
         </div>
-        <button
-          type="button"
-          className="text-sm text-[var(--plum-700)] underline"
-          onClick={toggleAll}
-        >
-          {allSelected ? "Clear selection" : "Select all"}
-        </button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={openFilters}>Filters</Button>
+          <button
+            type="button"
+            className="text-sm text-[var(--plum-700)] underline"
+            onClick={toggleAll}
+          >
+            {allSelected ? "Clear selection" : "Select all"}
+          </button>
+        </div>
       </div>
+
+      {filterChips.length > 0 ? (
+        <div className="flex items-center flex-wrap gap-2">
+          {filterChips.map((chip) => (
+            <button
+              key={chip.key}
+              type="button"
+              className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--cream-100)] px-3 py-1 text-xs"
+              onClick={() => setFilterState(removeFilterChip(filterState, chip))}
+            >
+              {chip.label}
+              <span className="text-[var(--ink-500)]">×</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       <div className="overflow-auto border border-[var(--border)] rounded-xl max-h-80">
         <table className="w-full text-sm">
@@ -56,7 +100,7 @@ export default function Step1SelectPeople({ employees, selectedIds, onChange }: 
             </tr>
           </thead>
           <tbody>
-            {employees.map((emp) => (
+            {filteredEmployees.map((emp) => (
               <tr key={emp.id} className="border-b border-[var(--border)] hover:bg-[var(--cream-100)]">
                 <td className="p-3">
                   <input

@@ -14,6 +14,13 @@ const FIELD_LABELS: Record<BulkField, string> = {
   level: "Level",
   cashComp: "Cash comp",
   targetBonusPct: "Target bonus %",
+  payPeriod: "Pay period",
+  status: "Status",
+  startDate: "Start date",
+  endDate: "End date",
+  employmentType: "Employment type",
+  jurisdiction: "Jurisdiction",
+  legalEntity: "Legal entity",
 };
 
 function jobName(job: BulkChangeJob) {
@@ -21,6 +28,7 @@ function jobName(job: BulkChangeJob) {
     .map((f) => FIELD_LABELS[f] ?? f)
     .slice(0, 4)
     .join(", ");
+  if (job.kind === "csv") return `CSV import: ${fields || "Update"}`;
   return `Bulk change: ${fields || "Update"}`;
 }
 

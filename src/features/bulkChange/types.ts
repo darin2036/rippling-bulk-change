@@ -9,7 +9,14 @@ export type BulkField =
   | "title"
   | "level"
   | "cashComp"
-  | "targetBonusPct";
+  | "targetBonusPct"
+  | "payPeriod"
+  | "status"
+  | "startDate"
+  | "endDate"
+  | "employmentType"
+  | "jurisdiction"
+  | "legalEntity";
 
 export type ApplyToAll = Partial<Record<BulkField, unknown>>;
 export type OverridesByEmployee = Record<string, Partial<Record<BulkField, unknown>>>;
@@ -29,6 +36,15 @@ export type BulkChangeDraft = {
   selectedFields: BulkField[];
   applyToAll: ApplyToAll;
   overrides: OverridesByEmployee;
+  exceptionOverrides?: Record<
+    string,
+    {
+      reason: string;
+      note?: string;
+      appliedBy: string;
+      appliedAt: number;
+    }
+  >;
 };
 
 export type PropStep =
@@ -67,9 +83,27 @@ export type BulkChangeJob = {
   totalCount: number;
   draftSnapshot: BulkChangeDraft;
   changesApplied?: boolean;
+  kind?: "wizard" | "csv";
+  csv?: CsvImportSnapshot;
 };
 
 export type PeopleIndex = {
   employees: Employee[];
   byId: Record<string, Employee>;
+};
+
+export type CsvImportRecord = {
+  rowId: string;
+  email: string;
+  resolvedEmployeeId: string | null;
+  managerEmail?: string;
+  // Parsed values to apply (only non-empty entries should be present).
+  values: Record<string, unknown>;
+  // Validation issues collected at upload time; used to fail rows immediately.
+  issues: { field: string; message: string }[];
+};
+
+export type CsvImportSnapshot = {
+  headers: string[];
+  records: CsvImportRecord[];
 };

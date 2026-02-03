@@ -1,7 +1,7 @@
 import { uid } from "../../lib/ids";
 import { loadJSON, saveJSON } from "../../lib/storage";
 
-export type EmploymentType = "Full-time" | "Contractor";
+export type EmploymentType = "Full-time" | "Part-time" | "Contractor" | "Intern";
 export type EmploymentStatus = "Active" | "Invited" | "Inactive";
 export type PayPeriod = "Annual" | "Hourly";
 export type LegacyLevel = "L1" | "L2" | "L3" | "L4" | "L5" | "L6" | "L7";
@@ -22,6 +22,8 @@ export type Employee = {
   email: string;
   department: string;
   team: string;
+  legalEntity?: string;
+  jurisdiction?: string;
   teamMemberships?: string;
   costCenter?: string;
   division?: string;
@@ -37,6 +39,7 @@ export type Employee = {
   status: EmploymentStatus;
   startDate: string;
   terminationDate?: string;
+  endDate?: string;
   name?: string;
   workLocation?: string;
   payPeriod?: PayPeriod;
@@ -90,10 +93,13 @@ function normalizeEmployee(employee: Employee): Employee {
     timezone,
     workSchedule,
     terminationDate: employee.terminationDate ?? "",
+    endDate: employee.endDate ?? employee.terminationDate ?? "",
     teamMemberships,
     costCenter: employee.costCenter ?? "CC-1001",
     division: employee.division ?? "Corporate",
     businessUnit: employee.businessUnit ?? "People Ops",
+    legalEntity: employee.legalEntity ?? "Opus Guard Inc.",
+    jurisdiction: employee.jurisdiction ?? "CA",
     matrixManagerId,
     name: employee.name ?? employee.fullName,
     workLocation: employee.workLocation ?? employee.location,
@@ -159,6 +165,21 @@ function seedEmployees(): Employee[] {
     { name: "London", timezone: "Europe/London" },
     { name: "Toronto", timezone: "America/Toronto" },
   ];
+
+  const locationJurisdiction: Record<string, string> = {
+    Headquarters: "CA",
+    Remote: "CA",
+    NYC: "NY",
+    Austin: "TX",
+    Chicago: "IL",
+    London: "UK",
+    Toronto: "ON",
+  };
+
+  const legalEntityByLocation: Record<string, string> = {
+    London: "Opus Guard UK Ltd.",
+    Toronto: "Opus Guard Canada ULC",
+  };
 
   const divisionByDept: Record<string, string> = {
     Engineering: "Product & Engineering",
@@ -229,13 +250,23 @@ function seedEmployees(): Employee[] {
 
   const makeEmployee = (partial: Partial<Employee> & { fullName: string; department: string; title: string; managerId: string | null; team: string }) => {
     const loc = partial.location ? { name: partial.location, timezone: partial.timezone ?? "America/Los_Angeles" } : pickLocation(employees.length);
-    const employmentType = partial.employmentType ?? (employees.length % 9 === 0 ? "Contractor" : "Full-time");
+    const employmentType = partial.employmentType ?? (
+      employees.length % 17 === 0 ? "Intern" :
+      employees.length % 11 === 0 ? "Part-time" :
+      employees.length % 9 === 0 ? "Contractor" :
+      "Full-time"
+    );
     const startBase = new Date(2023, 0, 15);
     const startDate = partial.startDate ?? formatDate(new Date(startBase.getTime() + employees.length * 8 * 24 * 60 * 60 * 1000));
     const baseSalary = partial.baseSalary ?? calcSalary(partial.title);
     const status = partial.status ?? pickStatus(employees.length);
     const email = partial.email ?? makeEmail(partial.fullName);
     const teamMemberships = partial.teamMemberships ?? partial.team;
+    const jurisdiction = partial.jurisdiction ?? locationJurisdiction[loc.name] ?? "CA";
+    const legalEntity = partial.legalEntity ?? legalEntityByLocation[loc.name] ?? "Opus Guard Inc.";
+    const terminationDate =
+      partial.terminationDate ??
+      (status === "Inactive" ? formatDate(new Date(startBase.getTime() + employees.length * 10 * 24 * 60 * 60 * 1000)) : "");
 
     const employee: Employee = {
       id: uid("emp"),
@@ -267,7 +298,8 @@ function seedEmployees(): Employee[] {
       currency: "USD",
       status,
       startDate,
-      terminationDate: partial.terminationDate ?? "",
+      terminationDate,
+      endDate: terminationDate,
       name: partial.fullName,
       workLocation: loc.name,
       payPeriod: partial.payPeriod,
@@ -275,6 +307,8 @@ function seedEmployees(): Employee[] {
       cashComp: baseSalary,
       targetBonusPct: partial.targetBonusPct,
       compCurrency: "USD",
+      jurisdiction,
+      legalEntity,
     };
 
     const normalized = normalizeEmployee(employee);
