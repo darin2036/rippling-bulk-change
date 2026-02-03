@@ -22,6 +22,23 @@ const FAIL_MESSAGES = [
   { step: "payrollSync" as const, msg: "Tax withholding impacted by location change — payroll review required" },
 ];
 
+function hashString(input: string) {
+  let h = 0;
+  for (let i = 0; i < input.length; i += 1) {
+    h = (h << 5) - h + input.charCodeAt(i);
+    h |= 0;
+  }
+  return h >>> 0;
+}
+
+function pickFailure(jobId: string, rowId: string, rate = 0.12) {
+  const seed = hashString(`${jobId}:${rowId}`);
+  const roll = (seed % 1000) / 1000;
+  if (roll >= rate) return null;
+  const idx = (seed >>> 3) % FAIL_MESSAGES.length;
+  return FAIL_MESSAGES[idx];
+}
+
 function cloneJob(job: BulkChangeJob): BulkChangeJob {
   return {
     ...job,
@@ -114,10 +131,9 @@ export async function continueCsvImportJob(
       message = "Employee not found for email";
       Object.assign(steps, makeFailedSteps("systemOfRecordUpdate"));
     } else {
-      const shouldFail = Math.random() < 0.12; // 5–15% target
-      const failPick = FAIL_MESSAGES[Math.floor(Math.random() * FAIL_MESSAGES.length)];
+      const failPick = pickFailure(next.id, rowId, 0.12);
       for (const s of STEPS) {
-        if (shouldFail && s === failPick.step) {
+        if (failPick && s === failPick.step) {
           steps[s] = "failed";
           ok = false;
           failedStep = s;
@@ -152,4 +168,3 @@ export async function continueCsvImportJob(
 
   return next;
 }
-

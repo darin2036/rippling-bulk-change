@@ -23,6 +23,23 @@ const FAIL_MESSAGES = [
   { step: "thirdPartySync" as const, msg: "App provisioning conflict — Okta group sync failed" },
 ];
 
+function hashString(input: string) {
+  let h = 0;
+  for (let i = 0; i < input.length; i += 1) {
+    h = (h << 5) - h + input.charCodeAt(i);
+    h |= 0;
+  }
+  return h >>> 0;
+}
+
+function pickFailure(jobId: string, employeeId: string, rate = 0.08) {
+  const seed = hashString(`${jobId}:${employeeId}`);
+  const roll = (seed % 1000) / 1000;
+  if (roll >= rate) return null;
+  const idx = (seed >>> 3) % FAIL_MESSAGES.length;
+  return FAIL_MESSAGES[idx];
+}
+
 function cloneJob(job: BulkChangeJob): BulkChangeJob {
   return {
     ...job,
@@ -75,8 +92,7 @@ export async function continueBulkJob(
   for (const empId of remaining) {
     await sleep(80 + Math.random() * 120);
 
-    const shouldFail = Math.random() < 0.08; // ~8%
-    const failPick = FAIL_MESSAGES[Math.floor(Math.random() * FAIL_MESSAGES.length)];
+    const failPick = pickFailure(next.id, empId, 0.08);
 
     const steps: JobEmployeeResult["steps"] = {
       systemOfRecordUpdate: "pending",
@@ -93,7 +109,7 @@ export async function continueBulkJob(
     for (const s of STEPS) {
       await sleep(30 + Math.random() * 60);
 
-      if (shouldFail && s === failPick.step) {
+      if (failPick && s === failPick.step) {
         steps[s] = "failed";
         ok = false;
         failedStep = s;
