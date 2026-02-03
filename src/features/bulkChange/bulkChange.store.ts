@@ -4,7 +4,7 @@ import { loadJSON, saveJSON } from "../../lib/storage";
 import { getEmployees, updateEmployees } from "../people/people.data";
 import { continueBulkJob } from "./jobs/jobRunner";
 import { continueCsvImportJob } from "./jobs/csvImportRunner";
-import type { BulkChangeDraft, BulkChangeJob, BulkField, CsvImportSnapshot } from "./types";
+import type { BulkChangeDraft, BulkChangeJob, BulkField, CsvImportSnapshot, JobEmployeeResult, JobStatus, PropStep } from "./types";
 import { groupIssuesByEmployee, validateDraft } from "./grid/validation";
 
 const DRAFT_KEY = "rbp_bulk_draft_v2";
@@ -281,12 +281,13 @@ export const useBulkStore = create<State>((set, get) => ({
 
     const jobId = uid("job");
     const scheduled = draft.effectiveMode === "scheduled" && !!draft.effectiveAt && draft.effectiveAt > Date.now();
+    const status: JobStatus = scheduled ? "Ready" : "Validating";
     const job: BulkChangeJob = {
       id: jobId,
       createdAt: Date.now(),
       createdBy: draft.createdBy,
       employeeIds,
-      status: scheduled ? "Ready" : "Validating",
+      status,
       auditLog: [
         { at: Date.now(), message: "Job created" },
         {
@@ -350,12 +351,13 @@ export const useBulkStore = create<State>((set, get) => ({
 
     const jobId = uid("job");
     const scheduled = draft.effectiveMode === "scheduled" && !!draft.effectiveAt && draft.effectiveAt > Date.now();
+    const status: JobStatus = scheduled ? "Ready" : "Running";
     const job: BulkChangeJob = {
       id: jobId,
       createdAt: Date.now(),
       createdBy: "Darin",
       employeeIds: rowIds,
-      status: scheduled ? "Ready" : "Running",
+      status,
       auditLog: [
         { at: Date.now(), message: "CSV import job created" },
         ...(scheduled && draft.effectiveAt
@@ -395,7 +397,8 @@ export const useBulkStore = create<State>((set, get) => ({
         scheduledJobs.set(jobId, timeout);
       }
       if (job.status !== "Ready") {
-        get().updateJob({ ...job, status: "Ready" });
+        const updated: BulkChangeJob = { ...job, status: "Ready" };
+        get().updateJob(updated);
       }
       return;
     }
@@ -406,7 +409,7 @@ export const useBulkStore = create<State>((set, get) => ({
         const current = get().jobs.find((j) => j.id === jobId);
         if (!current) return;
 
-        const startStatus =
+        const startStatus: BulkChangeJob =
           current.status === "Ready"
             ? current.kind === "csv"
               ? { ...current, status: "Running", auditLog: [...current.auditLog, { at: Date.now(), message: "Scheduled run started" }] }
@@ -456,6 +459,7 @@ export const useBulkStore = create<State>((set, get) => ({
     if (!job || job.kind !== "csv") return;
     const rowSet = new Set(rowIds);
     const results = job.results.filter((r) => !rowSet.has(r.employeeId));
+    const status: JobStatus = "Running";
     const auditLog = [
       ...job.auditLog,
       {
@@ -463,11 +467,11 @@ export const useBulkStore = create<State>((set, get) => ({
         message: `Retry requested for ${rowIds.length} row(s)${note && note.trim().length ? ` — ${note.trim()}` : ""}`,
       },
     ];
-    const updated = {
+    const updated: BulkChangeJob = {
       ...job,
       results,
       processedCount: results.length,
-      status: "Running" as const,
+      status,
       auditLog,
     };
     get().updateJob(updated);
@@ -489,7 +493,8 @@ export const useBulkStore = create<State>((set, get) => ({
         message: `Job canceled${note && note.trim().length ? ` — ${note.trim()}` : ""}`,
       },
     ];
-    get().updateJob({ ...job, status: "Canceled", auditLog });
+    const canceled: BulkChangeJob = { ...job, status: "Canceled", auditLog };
+    get().updateJob(canceled);
   },
   retryAppSync: (jobId, employeeIds, note) => {
     if (appSyncRetries.has(jobId)) return;
@@ -509,7 +514,7 @@ export const useBulkStore = create<State>((set, get) => ({
       },
     ];
 
-    const updated = { ...job, status: "Running" as const, auditLog };
+    const updated: BulkChangeJob = { ...job, status: "Running", auditLog };
     get().updateJob(updated);
 
     appSyncRetries.add(jobId);
@@ -520,14 +525,15 @@ export const useBulkStore = create<State>((set, get) => ({
           await sleep(220 + Math.random() * 240);
           const retryOk = Math.random() < 0.8;
           const failMessage = "App sync retry failed — downstream app still rejecting update";
-          const results = next.results.map((r) => {
+          const results: JobEmployeeResult[] = next.results.map((r) => {
             if (r.employeeId !== target.employeeId) return r;
             const steps = { ...r.steps, thirdPartySync: retryOk ? "ok" : "failed" };
             const ok = Object.values(steps).every((s) => s === "ok" || s === "skipped");
+            const failedStep: PropStep | undefined = retryOk ? undefined : "thirdPartySync";
             return {
               ...r,
               ok,
-              failedStep: retryOk ? undefined : "thirdPartySync",
+              failedStep,
               message: retryOk ? undefined : failMessage,
               steps,
             };
@@ -547,7 +553,7 @@ export const useBulkStore = create<State>((set, get) => ({
         }
 
         const failures = next.results.filter((r) => !r.ok).length;
-        const status = failures === 0 ? "Completed" : "CompletedWithErrors";
+        const status: JobStatus = failures === 0 ? "Completed" : "CompletedWithErrors";
         get().updateJob({ ...next, status });
       } finally {
         appSyncRetries.delete(jobId);
