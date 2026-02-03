@@ -1,9 +1,11 @@
 import Button from "../../components/Button";
 import { Card, CardContent, CardHeader } from "../../components/Card";
+import ScheduledUpdatesBanner from "../../components/ScheduledUpdatesBanner";
 
 export default function AddPeoplePage() {
   return (
     <div className="space-y-4">
+      <ScheduledUpdatesBanner />
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">Add People</h1>

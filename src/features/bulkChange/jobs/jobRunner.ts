@@ -45,7 +45,8 @@ export async function continueBulkJob(
 
   // Validation stage (resume-safe: only runs when job is explicitly in Validating)
   if (next.status === "Validating") {
-    audit("Validating inputs…");
+    const fieldList = next.draftSnapshot.selectedFields.join(", ");
+    audit(`Validating inputs for ${next.employeeIds.length} people · Fields: ${fieldList || "—"}`);
     await sleep(600);
     next = { ...next, status: "Running" };
     audit("Starting propagation across connected systems…");
@@ -112,7 +113,11 @@ export async function continueBulkJob(
     next.processedCount = next.results.length;
     onUpdate(next);
 
-    audit(ok ? `Updated ${empId}` : `Failed ${empId}: ${message}`);
+    audit(
+      ok
+        ? `Updated ${empId} across ${STEPS.length} systems`
+        : `Failed ${empId} at ${failedStep ?? "unknown step"}: ${message}`
+    );
     maybeAuditMilestone();
   }
 

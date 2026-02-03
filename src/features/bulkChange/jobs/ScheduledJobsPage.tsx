@@ -50,32 +50,34 @@ function overrideSummary(job: BulkChangeJob) {
 }
 
 function statusTone(status: BulkChangeJob["status"]) {
+  if (status === "Ready") return "purple" as const;
+  if (status === "Canceled") return "neutral" as const;
+  if (status === "Running") return "purple" as const;
   if (status === "Completed") return "green" as const;
   if (status === "CompletedWithErrors") return "amber" as const;
   if (status === "Failed") return "red" as const;
-  if (status === "Running") return "purple" as const;
-  if (status === "Canceled") return "neutral" as const;
   return "neutral" as const;
 }
 
-export default function JobsPage() {
-  const { jobs } = useBulkStore();
+export default function ScheduledJobsPage() {
+  const { jobs, cancelJob } = useBulkStore();
   const now = Date.now();
-  const historyJobs = jobs.filter(
-    (j) =>
-      !(
+  const scheduledJobs = jobs
+    .filter(
+      (j) =>
         j.status !== "Canceled" &&
         (j.status === "Ready" || j.draftSnapshot.effectiveMode === "scheduled") &&
         !!j.draftSnapshot.effectiveAt &&
         j.draftSnapshot.effectiveAt > now
-      )
-  );
+    )
+    .sort((a, b) => (a.draftSnapshot.effectiveAt ?? 0) - (b.draftSnapshot.effectiveAt ?? 0));
 
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Jobs</h1>
-        <div className="text-sm text-[var(--ink-500)]">History of bulk change jobs.</div>
+        <div className="text-sm text-[var(--ink-500)]">Jobs</div>
+        <h1 className="text-2xl font-semibold tracking-tight mt-1">Scheduled updates</h1>
+        <div className="text-sm text-[var(--ink-500)]">Upcoming bulk changes that have not run yet.</div>
       </div>
 
       <Card>
@@ -84,17 +86,17 @@ export default function JobsPage() {
             <thead className="bg-[var(--cream-100)] text-[var(--ink-500)] border-b border-[var(--border)]">
               <tr>
                 <th className="p-3 text-left">Job</th>
+                <th className="p-3 text-left">Scheduled for</th>
                 <th className="p-3 text-left">Created by</th>
-                <th className="p-3 text-left">Created at</th>
                 <th className="p-3 text-left">Status</th>
-                <th className="p-3 text-left">Progress</th>
+                <th className="p-3 text-left">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {historyJobs.length === 0 && (
-                <tr><td colSpan={5} className="p-3 text-[var(--ink-500)]">No jobs yet. Run a bulk change.</td></tr>
+              {scheduledJobs.length === 0 && (
+                <tr><td colSpan={5} className="p-3 text-[var(--ink-500)]">No scheduled jobs.</td></tr>
               )}
-              {historyJobs.map(j => (
+              {scheduledJobs.map((j) => (
                 <tr key={j.id} className="border-b border-[var(--border)] hover:bg-[var(--cream-100)]">
                   <td className="p-3 font-medium">
                     <div className="space-y-1">
@@ -108,13 +110,25 @@ export default function JobsPage() {
                       ) : null}
                     </div>
                   </td>
+                  <td className="p-3">
+                    {j.draftSnapshot.effectiveAt ? new Date(j.draftSnapshot.effectiveAt).toLocaleString() : "—"}
+                  </td>
                   <td className="p-3">{j.createdBy}</td>
-                  <td className="p-3">{new Date(j.createdAt).toLocaleString()}</td>
                   <td className="p-3">
                     <Badge tone={statusTone(j.status)}>{j.status}</Badge>
                   </td>
-                  <td className="p-3 text-[var(--ink-700)]">
-                    {j.processedCount}/{j.totalCount}
+                  <td className="p-3">
+                    {j.status === "Ready" ? (
+                      <button
+                        type="button"
+                        className="text-xs text-[var(--plum-700)] underline"
+                        onClick={() => cancelJob(j.id)}
+                      >
+                        Cancel
+                      </button>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                 </tr>
               ))}

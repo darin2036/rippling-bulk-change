@@ -10,6 +10,8 @@ import { useBulkStore } from "../bulkChange.store";
 import { loadSelectedIds } from "../bulkChange.state";
 import type { Employee } from "../../people/people.data";
 import type { CsvImportSnapshot } from "../types";
+import { useFilterStore } from "../../people/filters/filter.store";
+import { applyEmployeeFilters, buildFilterChips, removeFilterChip } from "../../people/filters/filter.engine";
 
 const LOCATION_OPTIONS = ["Headquarters", "Remote", "NYC", "Austin", "Chicago", "London", "Toronto"];
 const LEVELS = ["L1", "L2", "L3", "L4", "L5", "L6", "L7"];
@@ -41,13 +43,14 @@ export default function CsvImportPage() {
   const nav = useNavigate();
   const employees = useMemo(() => getEmployees(), []);
   const { startCsvJob, draft } = useBulkStore();
+  const { filterState, openFilters, setFilterState } = useFilterStore();
 
   const selectedIds = useMemo(() => {
     if (draft.selectedEmployeeIds.length > 0) return draft.selectedEmployeeIds;
     return loadSelectedIds();
   }, [draft.selectedEmployeeIds]);
 
-  const [scope, setScope] = useState<"all" | "selected" | "blank">("all");
+  const [scope, setScope] = useState<"all" | "filtered" | "blank">("all");
   const requiredKeys = useMemo(() => REQUIRED_KEYS, []);
   const [selectedKeys, setSelectedKeys] = useState<string[]>(() =>
     CSV_FIELDS.filter((f) => f.required).map((f) => f.key)
@@ -65,6 +68,24 @@ export default function CsvImportPage() {
     });
     return groups;
   }, []);
+
+  const filteredEmployees = useMemo(
+    () => applyEmployeeFilters(employees, filterState),
+    [employees, filterState]
+  );
+
+  const filterChips = useMemo(
+    () =>
+      buildFilterChips(filterState, {
+        employees,
+        departments: Array.from(new Set(employees.map((e) => e.department))),
+        locations: Array.from(new Set(employees.map((e) => e.workLocation ?? e.location))),
+        jurisdictions: Array.from(new Set(employees.map((e) => e.jurisdiction ?? ""))).filter(Boolean),
+        legalEntities: Array.from(new Set(employees.map((e) => e.legalEntity ?? ""))).filter(Boolean),
+        managers: employees.map((e) => ({ id: e.id, name: e.name ?? e.fullName })),
+      }),
+    [employees, filterState]
+  );
 
   const employeesById = useMemo(() => new Map(employees.map((e) => [e.id, e])), [employees]);
   const employeesByEmail = useMemo(
@@ -91,9 +112,10 @@ export default function CsvImportPage() {
   };
 
   const downloadTemplate = () => {
+    const scopedEmployees = scope === "filtered" ? filteredEmployees : employees;
     const { filename, csvText } = makeTemplateCsv({
       scope,
-      employees,
+      employees: scopedEmployees,
       selectedKeys,
       selectedIds,
     });
@@ -250,7 +272,7 @@ export default function CsvImportPage() {
     }
   };
 
-  const canDownload = scope !== "selected" || selectedIds.length > 0;
+  const canDownload = scope !== "filtered" || filteredEmployees.length > 0;
   const selectedCount = selectedKeys.length;
 
   return (
@@ -278,23 +300,55 @@ export default function CsvImportPage() {
             <div className="grid md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <div className="text-xs uppercase tracking-wide text-[var(--ink-500)]">Scope</div>
-                {["all", "selected", "blank"].map((s) => (
+                {["all", "filtered", "blank"].map((s) => (
                   <label key={s} className="flex items-center gap-2 text-sm">
                     <input
                       type="radio"
                       name="template-scope"
                       checked={scope === s}
-                      onChange={() => setScope(s as "all" | "selected" | "blank")}
+                      onChange={() => setScope(s as "all" | "filtered" | "blank")}
                     />
-                    {s === "all" ? "All employees" : s === "selected" ? "Selected employees" : "Blank template"}
+                    {s === "all" ? "All employees" : s === "filtered" ? "Filtered employees" : "Blank template"}
                   </label>
                 ))}
-                {scope === "selected" && selectedIds.length === 0 ? (
-                  <div className="text-xs text-amber-700">No selected employees. Select some in People first.</div>
+                {scope === "filtered" && filteredEmployees.length === 0 ? (
+                  <div className="text-xs text-amber-700">
+                    No employees match the current filters. Adjust filters to continue.
+                  </div>
                 ) : null}
               </div>
 
               <div className="md:col-span-2 space-y-3">
+                {scope === "filtered" ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs uppercase tracking-wide text-[var(--ink-500)]">Filters</div>
+                      <Button size="sm" onClick={openFilters}>
+                        Edit filters
+                      </Button>
+                    </div>
+                    <div className="text-xs text-[var(--ink-500)]">
+                      {filteredEmployees.length} employees match the current filters.
+                    </div>
+                    {filterChips.length > 0 ? (
+                      <div className="flex items-center flex-wrap gap-2">
+                        {filterChips.map((chip) => (
+                          <button
+                            key={chip.key}
+                            type="button"
+                            className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--cream-100)] px-3 py-1 text-xs"
+                            onClick={() => setFilterState(removeFilterChip(filterState, chip))}
+                          >
+                            {chip.label}
+                            <span className="text-[var(--ink-500)]">×</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-[var(--ink-500)]">No filters applied.</div>
+                    )}
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between">
                   <div className="text-xs uppercase tracking-wide text-[var(--ink-500)]">Columns</div>
                   <div className="text-xs text-[var(--ink-500)]">{selectedCount} selected</div>

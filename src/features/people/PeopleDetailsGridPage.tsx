@@ -4,6 +4,7 @@ import { Card, CardContent } from "../../components/Card";
 import { useProfileDrawer } from "../../components/profileDrawer/ProfileDrawerContext";
 import { getEmployees } from "./people.data";
 import type { Employee } from "./people.data";
+import ScheduledUpdatesBanner from "../../components/ScheduledUpdatesBanner";
 
 type OrgNode = {
   id: string;
@@ -136,6 +137,7 @@ export default function PeopleDetailsGridPage() {
 
   return (
     <div className="space-y-6">
+      <ScheduledUpdatesBanner />
       <div className="flex items-center justify-between">
         <div>
           <div className="text-sm text-[var(--ink-500)]">Org Chart</div>

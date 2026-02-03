@@ -66,6 +66,34 @@ export const DEPARTMENTS = [
 
 const KEY = "rbp_people_v3";
 const LASTNAME_MIGRATION_KEY = "rbp_people_lastname_migration_v1";
+const NAME_DIVERSIFY_MIGRATION_KEY = "rbp_people_name_diversify_v2";
+
+const DIVERSIFIED_LAST_NAMES = [
+  "Rivera","Cooper","Bailey","Bell","Gomez","Diaz","Foster","Gray","Howard","Russell",
+  "Griffin","Sullivan","Baker","Ward","Ramirez","Jenkins","Evans","Collins","Stewart","Sanchez",
+  "Rogers","Mitchell","Roberts","Turner","Phillips","Cruz","Ortiz","Chavez","Castillo","Romero",
+  "Mendez","Gutierrez","Sanders","Ross","Reynolds","Fisher","Harrison","Hamilton","Graham","Sims",
+  "Fowler","Bishop","Holland","Pierce","Hoffman","Carpenter","Manning","Dunn","Hunt","Webb",
+  "Wells","Stone","Hansen","Rojas","Soto","Aguilar","Silva","Barrett","Fitzgerald","Stephens",
+  "McCarthy","Olsen","Mendoza","Hawkins","Tucker","Fleming","Schmidt","Weber","Keller","Henderson",
+  "Richards","Hays","Duncan","Greene","Horton","Wagner","Vaughn","Snyder","Hart","Cunningham",
+  "Ferguson","Marshall","Hunter","Spencer","Carr","George","Lambert","Oliver","Dean","Walters",
+  "Gibson","Moss","Ford","Pearson","Hammond","Nakamura","Sato","Kobayashi","Ishikawa","Tanaka",
+  "Okada","Kuznetsov","Petrov","Smirnov","Ivanov","Popov","Novak","Horvat","Varga","Szabo",
+  "Larsen","Johansson","Andersen","Berg","Lind","Lindholm","Nygaard","Strom","Hansen","Olsen",
+  "Dubois","Moreau","Lefevre","Laurent","Marchand","Renard","Pierre","Fontaine","Boucher","Lemoine",
+  "Rossi","Ricci","Lombardi","Ferrari","Bianchi","Gallo","Conti","Martini","Santoro","Marino",
+  "Almeida","Sousa","Costa","Pereira","Nunes","Carvalho","Azevedo","Lopes","Ramos","Teixeira",
+];
+
+function hashString(input: string) {
+  let h = 0;
+  for (let i = 0; i < input.length; i += 1) {
+    h = (h << 5) - h + input.charCodeAt(i);
+    h |= 0;
+  }
+  return h >>> 0;
+}
 
 function normalizeEmployee(employee: Employee): Employee {
   const preferredName = employee.preferredName ?? employee.fullName.split(" ")[0];
@@ -487,6 +515,55 @@ export function getEmployees(): Employee[] {
       } else {
         saveJSON(LASTNAME_MIGRATION_KEY, true);
       }
+    }
+
+    // One-time migration: diversify last names when there are too many repeats.
+    const diversifyFlag = loadJSON<boolean>(NAME_DIVERSIFY_MIGRATION_KEY, false);
+    if (!diversifyFlag) {
+      const lastToken = (name: string) => {
+        const parts = name.trim().split(/\s+/);
+        return parts.length ? parts[parts.length - 1] : "";
+      };
+
+      const counts: Record<string, number> = {};
+      normalized.forEach((e) => {
+        const last = lastToken(e.fullName);
+        if (!last) return;
+        counts[last] = (counts[last] || 0) + 1;
+      });
+
+      const usedFullNames = new Set(normalized.map((e) => e.fullName));
+      const overrepresented = new Set(Object.keys(counts).filter((ln) => counts[ln] > 2));
+
+      normalized = normalized.map((e) => {
+        if (e.department === "Executives") return e;
+        const last = lastToken(e.fullName);
+        if (!last || !overrepresented.has(last)) return e;
+
+        const parts = e.fullName.trim().split(/\s+/);
+        const first = parts[0] || e.fullName;
+        let nextName = e.fullName;
+        for (let i = 0; i < 10; i += 1) {
+          const pick = DIVERSIFIED_LAST_NAMES[hashString(`${e.id}-${i}`) % DIVERSIFIED_LAST_NAMES.length];
+          if (!pick || pick === last) continue;
+          const candidate = `${first} ${pick}`;
+          if (!usedFullNames.has(candidate)) {
+            nextName = candidate;
+            usedFullNames.add(candidate);
+            break;
+          }
+        }
+
+        if (nextName === e.fullName) return e;
+        return {
+          ...e,
+          fullName: nextName,
+          name: nextName,
+          preferredName: first,
+        };
+      });
+
+      saveJSON(NAME_DIVERSIFY_MIGRATION_KEY, true);
     }
 
     saveJSON(KEY, normalized);

@@ -36,6 +36,8 @@ export type BulkChangeDraft = {
   selectedFields: BulkField[];
   applyToAll: ApplyToAll;
   overrides: OverridesByEmployee;
+  effectiveMode?: "immediate" | "scheduled";
+  effectiveAt?: number | null;
   exceptionOverrides?: Record<
     string,
     {
@@ -61,7 +63,8 @@ export type JobStatus =
   | "Running"
   | "Completed"
   | "CompletedWithErrors"
-  | "Failed";
+  | "Failed"
+  | "Canceled";
 
 export type JobEmployeeResult = {
   employeeId: string;

@@ -13,6 +13,8 @@ import Step2ChooseFields from "./steps/Step2_ChooseFields";
 import Step3ApplyValues from "./steps/Step3_ApplyValues";
 import Step4Review from "./steps/Step4_Review";
 import Step5Confirm from "./steps/Step5_Confirm";
+import ScheduleControls from "./components/ScheduleControls";
+import ScheduledUpdatesBanner from "../../components/ScheduledUpdatesBanner";
 
 const GUIDED_STEPS = ["Select people", "Choose fields", "Apply values", "Review", "Confirm"];
 const CSV_STEPS = ["Upload CSV", "Review", "Confirm"];
@@ -110,6 +112,7 @@ export default function BulkChangeWizard() {
     setApplyToAllField,
     setOverrideField,
     clearOverrideField,
+    setEffectiveSchedule,
     setExceptionOverride,
     resetDraft,
     startJobFromDraft,
@@ -172,9 +175,15 @@ export default function BulkChangeWizard() {
     return draft.selectedFields.every((field) => {
       const v = draft.applyToAll[field];
       if (typeof v === "string") return v.trim().length > 0;
-      return v !== undefined && v !== null;
+      if (v !== undefined && v !== null) return true;
+
+      return draft.selectedEmployeeIds.every((id) => {
+        const ov = draft.overrides[id]?.[field];
+        if (typeof ov === "string") return ov.trim().length > 0;
+        return ov !== undefined && ov !== null;
+      });
     });
-  }, [draft.applyToAll, draft.selectedFields, mode]);
+  }, [draft.applyToAll, draft.overrides, draft.selectedFields, draft.selectedEmployeeIds, mode]);
 
   const canNext = useMemo(() => {
     if (mode === "csv") {
@@ -380,6 +389,7 @@ export default function BulkChangeWizard() {
       </CardHeader>
 
       <CardContent className="space-y-4">
+        <ScheduledUpdatesBanner />
         {/* Mode toggle (guided vs CSV) */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2">
@@ -470,6 +480,9 @@ export default function BulkChangeWizard() {
                 onSetApplyToAllField={(field, value) => setApplyToAllField(field, value)}
                 onSetOverrideField={(employeeId, field, value) => setOverrideField(employeeId, field, value)}
                 onClearOverrideField={(employeeId, field) => clearOverrideField(employeeId, field)}
+                effectiveMode={draft.effectiveMode ?? "immediate"}
+                effectiveAt={draft.effectiveAt}
+                onChangeEffectiveSchedule={setEffectiveSchedule}
                 departments={DEPARTMENTS}
                 locations={LOCATION_OPTIONS}
               />
@@ -492,6 +505,8 @@ export default function BulkChangeWizard() {
                 selectedFields={draft.selectedFields}
                 selectedEmployees={selectedEmployees}
                 issues={validationIssues}
+                effectiveMode={draft.effectiveMode ?? "immediate"}
+                effectiveAt={draft.effectiveAt}
                 exceptionOverrides={draft.exceptionOverrides}
                 onChangeExceptionOverride={setExceptionOverride}
               />
@@ -568,13 +583,21 @@ export default function BulkChangeWizard() {
             ) : null}
 
             {step === 1 ? (
-              <Step4Review
-                employees={employees}
-                selectedIds={draft.selectedEmployeeIds}
-                fields={draft.selectedFields}
-                applyToAll={draft.applyToAll}
-                overrides={draft.overrides}
-              />
+              <div className="space-y-4">
+                <ScheduleControls
+                  mode={draft.effectiveMode ?? "immediate"}
+                  effectiveAt={draft.effectiveAt}
+                  onChange={setEffectiveSchedule}
+                  label="When should these changes take effect?"
+                />
+                <Step4Review
+                  employees={employees}
+                  selectedIds={draft.selectedEmployeeIds}
+                  fields={draft.selectedFields}
+                  applyToAll={draft.applyToAll}
+                  overrides={draft.overrides}
+                />
+              </div>
             ) : null}
 
             {step === 2 ? (
@@ -584,6 +607,8 @@ export default function BulkChangeWizard() {
                 selectedFields={draft.selectedFields}
                 selectedEmployees={selectedEmployees}
                 issues={validationIssues}
+                effectiveMode={draft.effectiveMode ?? "immediate"}
+                effectiveAt={draft.effectiveAt}
                 exceptionOverrides={draft.exceptionOverrides}
                 onChangeExceptionOverride={setExceptionOverride}
               />

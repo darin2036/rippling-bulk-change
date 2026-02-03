@@ -75,7 +75,7 @@ export function makeTemplateCsv({
   selectedKeys,
   selectedIds,
 }: {
-  scope: "all" | "selected" | "blank";
+  scope: "all" | "selected" | "filtered" | "blank";
   employees: Employee[];
   selectedKeys: string[];
   selectedIds?: string[];
@@ -85,6 +85,8 @@ export function makeTemplateCsv({
 
   if (scope === "all") {
     rows = employees.map((emp) => employeeToRow(emp, headers));
+  } else if (scope === "filtered") {
+    rows = employees.map((emp) => employeeToRow(emp, headers));
   } else if (scope === "selected") {
     const selectedSet = new Set(selectedIds ?? []);
     rows = employees.filter((e) => selectedSet.has(e.id)).map((emp) => employeeToRow(emp, headers));
@@ -93,10 +95,16 @@ export function makeTemplateCsv({
   }
 
   const csvText = toCSV(headers, rows);
-  const suffix = scope === "selected" ? "selected" : scope === "all" ? "all" : "blank";
+  const suffix =
+    scope === "selected"
+      ? "selected"
+      : scope === "filtered"
+        ? "filtered"
+        : scope === "all"
+          ? "all"
+          : "blank";
   return {
     filename: `bulk_change_template_${suffix}.csv`,
     csvText,
   };
 }
-

@@ -1,8 +1,19 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useBulkStore } from "../../features/bulkChange/bulkChange.store";
 
 export default function TopBar() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { jobs } = useBulkStore();
+  const scheduledCount = useMemo(() => {
+    const now = Date.now();
+    return jobs.filter(
+      (j) =>
+        j.status === "Ready" &&
+        !!j.draftSnapshot.effectiveAt &&
+        j.draftSnapshot.effectiveAt > now
+    ).length;
+  }, [jobs]);
 
   const toggleMenu = () => setMenuOpen((prev) => !prev);
   const closeMenu = () => setMenuOpen(false);
@@ -39,6 +50,19 @@ export default function TopBar() {
       </div>
 
       <div className="flex items-center gap-3">
+        {scheduledCount > 0 ? (
+          <Link
+            to="/jobs/scheduled"
+            className="flex items-center gap-2 text-xs bg-white/15 rounded-full px-3 py-1 hover:bg-white/20"
+            title="Scheduled updates"
+          >
+            <span className="text-xs">⏲</span>
+            Scheduled
+            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-orange-500 text-white px-1 text-[10px]">
+              {scheduledCount}
+            </span>
+          </Link>
+        ) : null}
         <div className="p-1.5 rounded-full bg-white/10">
           <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none">
             <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5" />
@@ -136,6 +160,20 @@ export default function TopBar() {
               <div className="text-xs uppercase tracking-[0.2em] text-[var(--ink-500)] py-2 border-t border-[var(--border)]">
                 Platform
               </div>
+              <Link to="/jobs/scheduled" className="flex items-center justify-between px-2 py-2 rounded-lg hover:bg-[var(--cream-100)] text-sm" onClick={closeMenu}>
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">⏲</span>
+                  <span>Scheduled updates</span>
+                </div>
+                <span className="text-[var(--ink-500)]">›</span>
+              </Link>
+              <Link to="/jobs" className="flex items-center justify-between px-2 py-2 rounded-lg hover:bg-[var(--cream-100)] text-sm" onClick={closeMenu}>
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">🧾</span>
+                  <span>Audit log</span>
+                </div>
+                <span className="text-[var(--ink-500)]">›</span>
+              </Link>
               {["Tools", "Company settings", "Global workforce", "App Shop", "Help"].map((item) => (
                 <div key={item} className="flex items-center justify-between px-2 py-2 rounded-lg hover:bg-[var(--cream-100)] text-sm">
                   <div className="flex items-center gap-3">

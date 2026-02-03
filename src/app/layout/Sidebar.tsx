@@ -37,6 +37,21 @@ const IconGear = () => (
     <path d="M3 10H5M15 10H17M10 3V5M10 15V17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
   </svg>
 );
+const IconReceipt = () => (
+  <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none">
+    <path d="M5 3H15V17L13 16L11 17L9 16L7 17L5 16V3Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    <path d="M7.5 7H12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M7.5 10H12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M7.5 13H10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+const IconCalendar = () => (
+  <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none">
+    <rect x="3" y="4.5" width="14" height="12" rx="2" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M6 3V6.5M14 3V6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M3 8.5H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
 
 const Item = ({
   to,
@@ -92,6 +107,13 @@ export default function Sidebar({ currentPath }: Props) {
       <div className="mt-8 border-t border-[var(--border)] pt-4">
         <div className="text-xs text-[var(--ink-500)] mb-2">Platform</div>
         <div className="space-y-1">
+          <Item to="/jobs/scheduled" label="Scheduled updates" active={currentPath.startsWith("/jobs/scheduled")} icon={<IconCalendar />} />
+          <Item
+            to="/jobs"
+            label="Audit log"
+            active={currentPath.startsWith("/jobs") && !currentPath.startsWith("/jobs/scheduled")}
+            icon={<IconReceipt />}
+          />
           <div className="px-3 py-2 text-sm text-[var(--ink-700)] hover:bg-[var(--cream-100)] rounded-lg flex items-center gap-2">
             <span className="w-5 text-center"><IconGear /></span>
             Tools

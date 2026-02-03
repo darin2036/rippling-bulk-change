@@ -1,8 +1,10 @@
 import Button from "../../components/Button";
+import ScheduledUpdatesBanner from "../../components/ScheduledUpdatesBanner";
 
 export default function RemovePeoplePage() {
   return (
     <div className="space-y-6">
+      <ScheduledUpdatesBanner />
       <div className="flex items-center justify-between border-b border-[var(--border)] pb-2">
         <div className="text-sm text-[var(--ink-500)]">
           <span className="font-semibold text-[var(--plum-700)] border-b-2 border-[var(--plum-600)] pb-2 inline-flex">

@@ -10,6 +10,7 @@ import StartBulkChangeModal from "../bulkChange/StartBulkChangeModal";
 import { useBulkStore } from "../bulkChange/bulkChange.store";
 import { useFilterStore } from "./filters/filter.store";
 import { applyEmployeeFilters, buildFilterChips, removeFilterChip } from "./filters/filter.engine";
+import ScheduledUpdatesBanner from "../../components/ScheduledUpdatesBanner";
 
 export default function PeoplePage() {
   const nav = useNavigate();
@@ -38,6 +39,7 @@ export default function PeoplePage() {
 
   return (
     <div className="space-y-6">
+      <ScheduledUpdatesBanner />
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-semibold">Hello, Darin</h1>

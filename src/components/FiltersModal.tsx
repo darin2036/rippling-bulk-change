@@ -133,7 +133,7 @@ export default function FiltersModal({
 
   return (
     <Modal open={isOpen} title="Filters" onClose={closeFilters} maxWidthClass="max-w-5xl">
-      <div className="p-6">
+      <div className="p-6 max-h-[85vh] flex flex-col">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="text-2xl font-semibold">Filters</div>
@@ -151,8 +151,8 @@ export default function FiltersModal({
           </button>
         </div>
 
-        <div className="mt-6 grid grid-cols-[180px_1fr_260px] gap-4">
-          <div className="border-r border-[var(--border)] pr-3 space-y-1">
+        <div className="mt-6 grid grid-cols-[180px_1fr_260px] gap-4 flex-1 min-h-0">
+          <div className="border-r border-[var(--border)] pr-3 space-y-1 overflow-auto">
             {CATEGORIES.map((cat) => (
               <button
                 key={cat.key}
@@ -169,9 +169,9 @@ export default function FiltersModal({
             ))}
           </div>
 
-          <div className="min-h-[320px] pr-2">{renderPanel()}</div>
+          <div className="min-h-[320px] pr-2 overflow-auto">{renderPanel()}</div>
 
-          <div className="border-l border-[var(--border)] pl-4">
+          <div className="border-l border-[var(--border)] pl-4 overflow-auto">
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold">Selected filters</div>
               <button

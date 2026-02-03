@@ -13,8 +13,20 @@ type Props = {
 const LABELS: Partial<Record<BulkField, string>> = {
   department: "Department",
   managerId: "Manager",
-  location: "Work location",
+  location: "Location",
   title: "Title",
+  workLocation: "Work location",
+  team: "Team",
+  level: "Level",
+  cashComp: "Cash comp",
+  targetBonusPct: "Target bonus %",
+  payPeriod: "Pay period",
+  status: "Status",
+  startDate: "Start date",
+  endDate: "End date",
+  employmentType: "Employment type",
+  jurisdiction: "Jurisdiction",
+  legalEntity: "Legal entity",
 };
 
 function Arrow() {

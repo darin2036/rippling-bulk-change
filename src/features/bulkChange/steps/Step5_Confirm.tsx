@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { Employee } from "../../people/people.data";
 import type { BulkField, ValidationIssue } from "../types";
 
@@ -23,6 +23,8 @@ export default function Step5Confirm({
   fieldLabels,
   selectedEmployees,
   issues,
+  effectiveMode,
+  effectiveAt,
   exceptionOverrides,
   onChangeExceptionOverride,
 }: {
@@ -31,6 +33,8 @@ export default function Step5Confirm({
   fieldLabels: Partial<Record<BulkField, string>>;
   selectedEmployees: Employee[];
   issues: ValidationIssue[];
+  effectiveMode: "immediate" | "scheduled";
+  effectiveAt?: number | null;
   exceptionOverrides?: Record<string, ExceptionOverride>;
   onChangeExceptionOverride: (employeeId: string, override: ExceptionOverride | null) => void;
 }) {
@@ -67,6 +71,9 @@ export default function Step5Confirm({
     return missing;
   }, [issuesByEmployee, exceptionMap]);
 
+  const [bulkReason, setBulkReason] = useState("Executive approval");
+  const [bulkNote, setBulkNote] = useState("");
+
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-[var(--border)] bg-[var(--cream-100)] p-4">
@@ -90,6 +97,14 @@ export default function Step5Confirm({
           <div className="text-sm text-[var(--ink-500)]">
             Fields: <span className="font-medium text-[var(--ink-900)]">{fields.join(", ") || "—"}</span>
           </div>
+        </div>
+        <div className="text-sm text-[var(--ink-500)] mt-2">
+          Effective:{" "}
+          <span className="font-medium text-[var(--ink-900)]">
+            {effectiveMode === "scheduled" && effectiveAt
+              ? new Date(effectiveAt).toLocaleString()
+              : "Immediately"}
+          </span>
         </div>
 
         <div className="mt-3 overflow-auto border border-[var(--border)] rounded-xl">
@@ -139,6 +154,54 @@ export default function Step5Confirm({
           <>
             <div className="text-sm text-[var(--ink-700)]">
               {issues.length} issue(s) across {issuesByEmployee.size} employee(s) must be resolved or overridden.
+            </div>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
+              <div className="text-sm font-semibold text-amber-900">Bulk override action</div>
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="text-xs text-amber-900">
+                  Reason
+                  <select
+                    className="mt-1 h-8 w-48 border border-[var(--border)] rounded-lg bg-white px-2 text-xs"
+                    value={bulkReason}
+                    onChange={(e) => setBulkReason(e.target.value)}
+                  >
+                    {REASONS.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-xs text-amber-900 flex-1 min-w-[220px]">
+                  Notes
+                  <input
+                    className="mt-1 h-8 w-full border border-[var(--border)] rounded-lg bg-white px-2 text-xs"
+                    placeholder="Optional notes for audit logs"
+                    value={bulkNote}
+                    onChange={(e) => setBulkNote(e.target.value)}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="h-8 px-3 rounded-lg bg-amber-900 text-white text-xs disabled:opacity-50"
+                  disabled={bulkReason === "Other" && bulkNote.trim().length === 0}
+                  onClick={() => {
+                    issuesByEmployee.forEach((_issues, employeeId) => {
+                      onChangeExceptionOverride(employeeId, {
+                        reason: bulkReason,
+                        note: bulkNote.trim().length ? bulkNote : undefined,
+                        appliedBy: "Darin",
+                        appliedAt: Date.now(),
+                      });
+                    });
+                  }}
+                >
+                  Apply to all flagged
+                </button>
+              </div>
+              {bulkReason === "Other" && bulkNote.trim().length === 0 ? (
+                <div className="text-[10px] text-amber-900">Add notes when using Other.</div>
+              ) : null}
             </div>
             <div className="border border-[var(--border)] rounded-xl overflow-hidden">
               <table className="min-w-[600px] w-full text-sm">
