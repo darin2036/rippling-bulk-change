@@ -527,7 +527,8 @@ export const useBulkStore = create<State>((set, get) => ({
           const failMessage = "App sync retry failed — downstream app still rejecting update";
           const results: JobEmployeeResult[] = next.results.map((r) => {
             if (r.employeeId !== target.employeeId) return r;
-            const steps = { ...r.steps, thirdPartySync: retryOk ? "ok" : "failed" };
+            const thirdPartySync: JobEmployeeResult["steps"]["thirdPartySync"] = retryOk ? "ok" : "failed";
+            const steps: JobEmployeeResult["steps"] = { ...r.steps, thirdPartySync };
             const ok = Object.values(steps).every((s) => s === "ok" || s === "skipped");
             const failedStep: PropStep | undefined = retryOk ? undefined : "thirdPartySync";
             return {
