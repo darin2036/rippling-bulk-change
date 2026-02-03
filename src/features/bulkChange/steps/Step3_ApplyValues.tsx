@@ -1,22 +1,17 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import type { Employee } from "../../people/people.data";
-import type { ApplyToAll, BulkField, OverridesByEmployee } from "../types";
+import type { BulkField, OverridesByEmployee } from "../types";
 import ScheduleControls from "../components/ScheduleControls";
 
 type Props = {
   employees: Employee[];
   selectedIds: string[];
   fields: BulkField[];
-  applyToAll: ApplyToAll;
   overrides: OverridesByEmployee;
-  onSetApplyToAllField: (field: BulkField, value: string | number) => void;
   onSetOverrideField: (employeeId: string, field: BulkField, value: string | number) => void;
-  onClearOverrideField: (employeeId: string, field: BulkField) => void;
   effectiveMode: "immediate" | "scheduled";
   effectiveAt?: number | null;
   onChangeEffectiveSchedule: (mode: "immediate" | "scheduled", at?: number | null) => void;
-  departments: string[];
-  locations: string[];
 };
 
 const LABELS: Partial<Record<BulkField, string>> = {
@@ -42,186 +37,57 @@ export default function Step3ApplyValues({
   employees,
   selectedIds,
   fields,
-  applyToAll,
   overrides,
-  onSetApplyToAllField,
   onSetOverrideField,
-  onClearOverrideField,
   effectiveMode,
   effectiveAt,
   onChangeEffectiveSchedule,
-  departments,
-  locations,
 }: Props) {
   const selectedEmployees = useMemo(
     () => employees.filter((e) => selectedIds.includes(e.id)),
     [employees, selectedIds]
   );
 
-  const managerOptions = useMemo(
-    () => employees.map((e) => ({ id: e.id, name: e.fullName })),
-    [employees]
-  );
-
-  const renderFieldInput = (
-    field: BulkField,
-    value: string | number,
-    onChange: (next: string | number) => void,
-    placeholder?: string
-  ) => {
-    const stringValue = value === undefined || value === null ? "" : String(value);
-    if (field === "department") {
-      return (
-        <select
-          className="w-full border border-[var(--border)] rounded-xl px-3 py-2 bg-white text-sm"
-          value={stringValue}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          <option value="">Select department</option>
-          {departments.map((dept) => (
-            <option key={dept} value={dept}>
-              {dept}
-            </option>
-          ))}
-        </select>
-      );
-    }
-    if (field === "managerId") {
-      return (
-        <select
-          className="w-full border border-[var(--border)] rounded-xl px-3 py-2 bg-white text-sm"
-          value={stringValue}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          <option value="">Select manager</option>
-          {managerOptions.map((mgr) => (
-            <option key={mgr.id} value={mgr.id}>
-              {mgr.name}
-            </option>
-          ))}
-        </select>
-      );
-    }
-    if (field === "location" || field === "workLocation") {
-      return (
-        <select
-          className="w-full border border-[var(--border)] rounded-xl px-3 py-2 bg-white text-sm"
-          value={stringValue}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          <option value="">Select location</option>
-          {locations.map((loc) => (
-            <option key={loc} value={loc}>
-              {loc}
-            </option>
-          ))}
-        </select>
-      );
-    }
-    if (field === "payPeriod") {
-      return (
-        <select
-          className="w-full border border-[var(--border)] rounded-xl px-3 py-2 bg-white text-sm"
-          value={stringValue}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          <option value="">Select pay period</option>
-          {["Annual", "Hourly"].map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      );
-    }
-    if (field === "status") {
-      return (
-        <select
-          className="w-full border border-[var(--border)] rounded-xl px-3 py-2 bg-white text-sm"
-          value={stringValue}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          <option value="">Select status</option>
-          {["Active", "Invited", "Inactive"].map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      );
-    }
-    if (field === "employmentType") {
-      return (
-        <select
-          className="w-full border border-[var(--border)] rounded-xl px-3 py-2 bg-white text-sm"
-          value={stringValue}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          <option value="">Select employment type</option>
-          {["Full-time", "Part-time", "Contractor", "Intern"].map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      );
-    }
-    if (field === "level") {
-      return (
-        <select
-          className="w-full border border-[var(--border)] rounded-xl px-3 py-2 bg-white text-sm"
-          value={stringValue}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          <option value="">Select level</option>
-          {["L1", "L2", "L3", "L4", "L5", "L6", "L7"].map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      );
-    }
-    if (field === "startDate" || field === "endDate") {
-      return (
-        <input
-          type="date"
-          className="w-full border border-[var(--border)] rounded-xl px-3 py-2 bg-white text-sm"
-          value={stringValue}
-          onChange={(e) => onChange(e.target.value)}
-        />
-      );
-    }
-    if (field === "cashComp" || field === "targetBonusPct") {
-      return (
-        <input
-          type="number"
-          className="w-full border border-[var(--border)] rounded-xl px-3 py-2 bg-white text-sm"
-          value={stringValue}
-          onChange={(e) => {
-            const raw = e.target.value;
-            if (raw === "") onChange("");
-            else onChange(Number(raw));
-          }}
-          placeholder={placeholder}
-        />
-      );
-    }
-    return (
-      <input
-        className="w-full border border-[var(--border)] rounded-xl px-3 py-2 bg-white text-sm"
-        value={stringValue}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-      />
-    );
-  };
+  const managerIdToName = useMemo(() => new Map(employees.map((e) => [e.id, e.fullName])), [employees]);
+  const managerLookup = useMemo(() => {
+    const map = new Map<string, string>();
+    employees.forEach((e) => {
+      map.set(e.id.toLowerCase(), e.id);
+      map.set(e.fullName.toLowerCase(), e.id);
+      if ((e as any).email) map.set(String((e as any).email).toLowerCase(), e.id);
+    });
+    return map;
+  }, [employees]);
 
   const normalizeFieldValue = (value: unknown): string | number => {
     if (typeof value === "number") return value;
     if (typeof value === "string") return value;
     return "";
   };
+
+  const getManagerDisplayValue = (raw: unknown) => {
+    const value = String(raw ?? "");
+    return managerIdToName.get(value) ?? value;
+  };
+
+  const resolveManagerInput = (raw: string) => {
+    const trimmed = raw.trim();
+    if (trimmed.length === 0) return "";
+    const resolved = managerLookup.get(trimmed.toLowerCase());
+    return resolved ?? trimmed;
+  };
+
+  useEffect(() => {
+    if (fields.length === 0 || selectedEmployees.length === 0) return;
+    selectedEmployees.forEach((emp) => {
+      fields.forEach((field) => {
+        const existing = overrides[emp.id]?.[field];
+        if (existing !== undefined) return;
+        const currentValue = (emp as any)[field];
+        onSetOverrideField(emp.id, field, normalizeFieldValue(currentValue));
+      });
+    });
+  }, [fields, selectedEmployees, overrides, onSetOverrideField]);
 
   return (
     <div className="space-y-4">
@@ -233,7 +99,7 @@ export default function Step3ApplyValues({
       />
 
       <div className="text-sm text-[var(--ink-500)]">
-        Edit directly in the grid. The top row applies to all selected people; per-person cells override.
+        Edit directly in the table. Cells start with current values and save as you type.
       </div>
 
       <div className="border border-[var(--border)] rounded-xl overflow-auto bg-white">
@@ -249,18 +115,6 @@ export default function Step3ApplyValues({
             </tr>
           </thead>
           <tbody>
-            <tr className="border-b border-[var(--border)] bg-[var(--cream-100)]/60">
-              <td className="p-3 font-semibold">Apply to all</td>
-              {fields.map((field) => (
-                <td key={`apply-${field}`} className="p-3">
-                  {renderFieldInput(
-                    field,
-                    normalizeFieldValue(applyToAll[field]),
-                    (next) => onSetApplyToAllField(field, next)
-                  )}
-                </td>
-              ))}
-            </tr>
             {selectedEmployees.map((emp) => (
               <tr key={emp.id} className="border-b border-[var(--border)]">
                 <td className="p-3">
@@ -269,16 +123,35 @@ export default function Step3ApplyValues({
                 </td>
                 {fields.map((field) => {
                   const overrideValue = overrides[emp.id]?.[field];
-                  const applyValue = applyToAll[field];
-                  const placeholder = applyValue !== undefined && applyValue !== "" ? String(applyValue) : "—";
+                  const inputValue =
+                    field === "managerId"
+                      ? getManagerDisplayValue(overrideValue)
+                      : normalizeFieldValue(overrideValue);
                   return (
                     <td key={`${emp.id}-${field}`} className="p-3">
-                      <div className={overrideValue !== undefined && overrideValue !== "" ? "rounded-lg ring-1 ring-[var(--plum-300)]" : ""}>
-                        {renderFieldInput(field, normalizeFieldValue(overrideValue), (next) => {
-                          if (next === "" || next === undefined) onClearOverrideField(emp.id, field);
-                          else onSetOverrideField(emp.id, field, next);
-                        }, placeholder)}
-                      </div>
+                      <input
+                        type={field === "cashComp" || field === "targetBonusPct" ? "number" : field === "startDate" || field === "endDate" ? "date" : "text"}
+                        className="w-full border border-[var(--border)] rounded-xl px-3 py-2 bg-white text-sm"
+                        value={inputValue}
+                        placeholder={field === "managerId" ? "Manager name or id" : undefined}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          if (raw === "") {
+                            onSetOverrideField(emp.id, field, "");
+                            return;
+                          }
+                          if (field === "cashComp" || field === "targetBonusPct") {
+                            const num = Number(raw);
+                            if (Number.isFinite(num)) onSetOverrideField(emp.id, field, num);
+                            return;
+                          }
+                          if (field === "managerId") {
+                            onSetOverrideField(emp.id, field, resolveManagerInput(raw));
+                            return;
+                          }
+                          onSetOverrideField(emp.id, field, raw);
+                        }}
+                      />
                     </td>
                   );
                 })}

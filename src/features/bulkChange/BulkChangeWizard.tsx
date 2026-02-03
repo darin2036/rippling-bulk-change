@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import Button from "../../components/Button";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import Stepper from "../../components/Stepper";
-import { DEPARTMENTS, getEmployees } from "../people/people.data";
+import { getEmployees } from "../people/people.data";
 import { clearSelectedIds, loadSelectedIds } from "./bulkChange.state";
 import { useBulkStore } from "./bulkChange.store";
 import type { BulkField } from "./types";
@@ -18,8 +18,6 @@ import ScheduledUpdatesBanner from "../../components/ScheduledUpdatesBanner";
 
 const GUIDED_STEPS = ["Select people", "Choose fields", "Apply values", "Review", "Confirm"];
 const CSV_STEPS = ["Upload CSV", "Review", "Confirm"];
-
-const LOCATION_OPTIONS = ["Headquarters", "Remote", "NYC", "Austin", "Chicago", "London", "Toronto"];
 
 // Fields we allow from CSV headers (case-insensitive).
 const CSV_FIELD_ALIASES: Array<{ header: string; field: BulkField }> = [
@@ -109,9 +107,7 @@ export default function BulkChangeWizard() {
     draft,
     setSelected,
     setSelectedFields,
-    setApplyToAllField,
     setOverrideField,
-    clearOverrideField,
     setEffectiveSchedule,
     setExceptionOverride,
     resetDraft,
@@ -177,7 +173,7 @@ export default function BulkChangeWizard() {
       if (typeof v === "string") return v.trim().length > 0;
       if (v !== undefined && v !== null) return true;
 
-      return draft.selectedEmployeeIds.every((id) => {
+      return draft.selectedEmployeeIds.some((id) => {
         const ov = draft.overrides[id]?.[field];
         if (typeof ov === "string") return ov.trim().length > 0;
         return ov !== undefined && ov !== null;
@@ -475,16 +471,11 @@ export default function BulkChangeWizard() {
                 employees={employees}
                 selectedIds={draft.selectedEmployeeIds}
                 fields={draft.selectedFields}
-                applyToAll={draft.applyToAll}
                 overrides={draft.overrides}
-                onSetApplyToAllField={(field, value) => setApplyToAllField(field, value)}
                 onSetOverrideField={(employeeId, field, value) => setOverrideField(employeeId, field, value)}
-                onClearOverrideField={(employeeId, field) => clearOverrideField(employeeId, field)}
                 effectiveMode={draft.effectiveMode ?? "immediate"}
                 effectiveAt={draft.effectiveAt}
                 onChangeEffectiveSchedule={setEffectiveSchedule}
-                departments={DEPARTMENTS}
-                locations={LOCATION_OPTIONS}
               />
             ) : null}
 
